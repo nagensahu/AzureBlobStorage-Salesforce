@@ -1,0 +1,115 @@
+<apex:page controller="AzureService">
+<apex:includeScript value="{!$Resource.AzureCommon}"/>
+<apex:includeScript value="{!$Resource.AzureBlob}"/>
+    
+<script type="text/javascript">
+var blobService;
+var speedSummary;
+var finishedOrError = false;
+var container;
+
+function initBlobService(storage) {
+
+    if (AzureStorage) {
+        blobUri = 'https://' + storage.storageName + '.blob.core.windows.net';
+        blobService = AzureStorage.createBlobService(storage.storageName, storage.storageKey);
+    } else {
+        alert('Azure service not found');
+    }
+}
+
+function listblobs() {
+    if (blobService) {
+        blobService.listBlobsSegmented(container, null, function(error, results) {
+            if (error) {
+                document.getElementById("response").innerHTML = JSON.stringify(error);
+            } else {
+
+                var list = document.getElementById("list");
+                for (var i = 0, blob; blob = results.entries[i]; i++) {
+                    var blobnm = document.createElement("li");
+                    blobnm.appendChild(document.createTextNode(blob.name));
+                    list.appendChild(blobnm);
+                }
+            }
+        });
+    } else {
+        alert("Blob Service not Found !");
+    }
+}
+
+function uploadFile() {
+    var file = document.getElementById('theFile').files[0];
+    var customBlockSize = file.size > 1024 * 1024 * 32 ? 1024 * 1024 * 4 : 1024 * 1024 * 1;
+    blobService.singleBlobPutThresholdInBytes = customBlockSize;
+    if (blobService) {
+        speedSummary = blobService.createBlockBlobFromBrowserFile(
+            container,
+            file.name,
+            file, {
+                blockSize: customBlockSize
+            },
+            function(error, result, response) {
+                finishedOrError = true;
+                console.log(JSON.stringify(result));
+                console.log(JSON.stringify(response));
+                if (error) {
+                    document.getElementById("response").innerHTML = JSON.stringify(error);
+                } else {
+                    alert("uploaded !");
+                }
+            });
+
+        refreshProgress();
+    }
+}
+
+function getContainerInfo() {
+    Visualforce.remoting.Manager.invokeAction(
+        '{!$RemoteAction.AzureService.storageDetails}',
+        function(result, event) {
+            if (event.status) {
+                initBlobService(result);
+                container = result.container;
+                var list = document.getElementById("details").innerHTML = JSON.stringify(result);
+
+            } else if (event.type === 'exception') {
+                document.getElementById("response").innerHTML = event.message;
+            } else {
+                document.getElementById("response").innerHTML = event.message;
+            }
+        }, {
+            escape: true
+        }
+    );
+}
+
+function refreshProgress() {
+    setTimeout(function() {
+        if (!finishedOrError) {
+            var process = speedSummary.getCompletePercent();
+            console.log('processes:' + process);
+            refreshProgress();
+        }
+    }, 200);
+}
+</script>
+<div style="border-style: solid;padding: 1rem;">
+    <button type="button" onclick="getContainerInfo();">Get Container Info</button>
+    <ul id="details">
+    </ul>
+</div>
+<br/>
+<div style="border-style: solid;padding: 1rem;">
+    <input type="file" id="theFile" />
+    <button type="button" onclick="uploadFile();">Upload</button>
+    <div id="response">
+    </div>
+</div>
+<br/>
+<div style="border-style: solid;padding: 1rem;">
+    <button type="button" onclick="listblobs();">List Blobs</button>
+    <ul id="list">
+    </ul>
+</div>
+</apex:page>
