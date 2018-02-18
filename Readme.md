@@ -20,4 +20,4 @@
 
 ### VF uses the Azure js library generated as per instructions [here](https://github.com/Azure/azure-storage-node/blob/master/browser/README.md)
 
-Check out the the script tag in the VF page to check out.
+Check out the the script tag in the VF page to understand.
